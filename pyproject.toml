@@ -1,0 +1,31 @@
+[project]
+name = "accelerator-physics-arxiv"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "kaggle>=2.0.1",
+    "numpy>=1.26",
+    "pandas>=2.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.20.2",
+    "pandas-stubs>=3.0.0.260204",
+    "poethepoet>=0.44.0",
+    "ruff>=0.15.12",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.poe.tasks]
+_format = "ruff format ."
+_clean = "ruff check --fix ."
+format.sequence = ["_format", "_clean"]
+
+_type = "mypy ."
+_check = "ruff check ."
+lint.sequence = ["_type", "_check"]
