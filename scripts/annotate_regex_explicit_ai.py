@@ -12,8 +12,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional, Pattern
 
 DEFAULT_INPUT = Path(__file__).parent.parent / "data" / "filtered_physics-acc-ph.jsonl"
 DEFAULT_OUTPUT = (
@@ -21,15 +21,15 @@ DEFAULT_OUTPUT = (
 )
 
 
-BucketMatches = dict[str, list[str]]
+Matches = dict[str, list[str]]
 
 
-def _compile(patterns: Iterable[str]) -> list[Pattern[str]]:
+def _compile(patterns: Iterable[str]) -> list[re.Pattern[str]]:
     return [re.compile(p, flags=re.IGNORECASE) for p in patterns]
 
 
-BUCKET_PATTERNS: dict[str, list[Pattern[str]]] = {
-    "ml": _compile(
+METHOD_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    "ML": _compile(
         [
             r"\bmachine learning\b",
             r"\bdeep learning\b",
@@ -45,7 +45,7 @@ BUCKET_PATTERNS: dict[str, list[Pattern[str]]] = {
             r"\bautoencoders?\b",
         ]
     ),
-    "ai_optimization": _compile(
+    "AI_OPT": _compile(
         [
             r"\bbayesian optimization\b",
             r"\bgenetic algorithm(?:s)?\b",
@@ -54,13 +54,70 @@ BUCKET_PATTERNS: dict[str, list[Pattern[str]]] = {
             r"\bparticle swarm optimization\b",
         ]
     ),
-    "surrogate": _compile(
+    "SURR": _compile(
         [
             r"\bsurrogate model(?:s)?\b",
             r"\bsurrogate-based\b",
         ]
     ),
-    "digital_twin": _compile([r"\bdigital twin(?:s)?\b"]),
+    "DTWIN": _compile([r"\bdigital twin(?:s)?\b"]),
+}
+
+CONTEXT_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    "DIAG": _compile(
+        [
+            r"\bdiagnostic(?:s)?\b",
+            r"\bbeam diagnostics\b",
+            r"\bbpm\b",
+            r"\bprofile\b",
+            r"\bimage(?:s|ing)?\b",
+            r"\btomograph(?:y|ic)\b",
+            r"\breconstruction\b",
+            r"\binversion\b",
+        ]
+    ),
+    "CTRL": _compile(
+        [
+            r"\bcontrol\b",
+            r"\bcontroller\b",
+            r"\bfeedback\b",
+            r"\bclosed[- ]loop\b",
+            r"\bmodel predictive control\b",
+        ]
+    ),
+    "OPT": _compile(
+        [
+            r"\btuning\b",
+            r"\boptimization\b",
+            r"\bonline optimization\b",
+            r"\bparameter optimization\b",
+        ]
+    ),
+    "SIM": _compile(
+        [
+            r"\bsimulation\b",
+            r"\bemulator\b",
+            r"\breduced[- ]order\b",
+        ]
+    ),
+    "ANOM": _compile(
+        [
+            r"\banomaly detection\b",
+            r"\bfault detection\b",
+            r"\boutlier\b",
+            r"\bclassification\b",
+        ]
+    ),
+    "DESIGN": _compile(
+        [
+            r"\blattice design\b",
+            r"\binjector\b",
+            r"\bphotoinjector\b",
+            r"\bgunn?\b",
+            r"\bmagnet design\b",
+            r"\brf systems?\b",
+        ]
+    ),
 }
 
 
@@ -70,20 +127,22 @@ def _text_for_matching(record: dict) -> str:
     return f"{title}\n{abstract}"
 
 
-def _match_buckets(text: str) -> BucketMatches:
-    hits: BucketMatches = {}
-    for bucket, patterns in BUCKET_PATTERNS.items():
+def _match_patterns(
+    text: str, pattern_map: dict[str, list[re.Pattern[str]]]
+) -> Matches:
+    hits: Matches = {}
+    for code, patterns in pattern_map.items():
         matched: list[str] = []
         for pat in patterns:
             if pat.search(text):
                 matched.append(pat.pattern)
         if matched:
-            hits[bucket] = matched
+            hits[code] = matched
     return hits
 
 
 def _load_checkpoint(output_path: Path) -> set[str]:
-    seen: Set[str] = set()
+    seen: set[str] = set()
     if not output_path.exists():
         return seen
     with output_path.open(encoding="utf-8") as f:
@@ -152,15 +211,24 @@ def main() -> None:
                 continue
 
             text = _text_for_matching(record)
-            matches = _match_buckets(text)
+            method_matches = _match_patterns(text, METHOD_PATTERNS)
+            methods = sorted(method_matches.keys())
+            has_methods = bool(methods)
+
+            context_matches: Matches = {}
+            contexts: list[str] = []
+            if has_methods:
+                context_matches = _match_patterns(text, CONTEXT_PATTERNS)
+                contexts = sorted(context_matches.keys())
+
+            matches: Matches = {}
+            matches.update(method_matches)
+            matches.update(context_matches)
+
             enriched = dict(record)
-            enriched["explicit_ai_ml"] = 1 if "ml" in matches else 0
-            enriched["explicit_ai_ai_optimization"] = (
-                1 if "ai_optimization" in matches else 0
-            )
-            enriched["explicit_ai_surrogate"] = 1 if "surrogate" in matches else 0
-            enriched["explicit_ai_digital_twin"] = 1 if "digital_twin" in matches else 0
-            enriched["explicit_ai_any"] = 1 if matches else 0
+            enriched["methods"] = methods
+            enriched["contexts"] = contexts
+            enriched["explicit_ai_any"] = 1 if has_methods else 0
             if args.include_matches:
                 enriched["explicit_ai_matches"] = matches
 
