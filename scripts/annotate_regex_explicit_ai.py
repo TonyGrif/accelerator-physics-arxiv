@@ -98,6 +98,19 @@ CONTEXT_PATTERNS: dict[str, list[re.Pattern[str]]] = {
             r"\bsimulation\b",
             r"\bemulator\b",
             r"\breduced[- ]order\b",
+            r"\bfast (model|modeling)\b",
+            r"\bfast modeling\b",
+        ]
+    ),
+    "DATA": _compile(
+        [
+            r"\barchived data\b",
+            r"\barchive data\b",
+            r"\bhistorical data\b",
+            r"\blog data\b",
+            r"\bdata analysis\b",
+            r"\bdata mining\b",
+            r"\blarge (quantities|amounts) of data\b",
         ]
     ),
     "ANOM": _compile(
