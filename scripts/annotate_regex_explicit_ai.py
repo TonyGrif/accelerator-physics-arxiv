@@ -1,11 +1,4 @@
-"""Annotate arXiv accelerator physics JSONL with AI/ML mentions
-
-Usage:
-  python3 scripts/annotate_regex_explicit_ai.py \
-    --input data/filtered_physics-acc-ph.jsonl \
-    --output data/annotated_physics-acc-ph_regex.jsonl \
-    --include-matches
-"""
+"""Annotate an arXiv accelerator-physics JSONL with explicit AI/ML method mentions"""
 
 from __future__ import annotations
 
@@ -13,13 +6,8 @@ import argparse
 import json
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
-
-DEFAULT_INPUT = Path(__file__).parent.parent / "data" / "filtered_physics-acc-ph.jsonl"
-DEFAULT_OUTPUT = (
-    Path(__file__).parent.parent / "data" / "annotated_physics-acc-ph_regex.jsonl"
-)
-
 
 Matches = dict[str, list[str]]
 
@@ -36,13 +24,26 @@ METHOD_PATTERNS: dict[str, list[re.Pattern[str]]] = {
             r"\bneural networks?\b",
             r"\breinforcement learning\b",
             r"\bgaussian process(?: regression)?\b",
-            r"\bGP\b",
             r"\bsupport vector machine\b",
             r"\bSVM\b",
             r"\brandom forest\b",
             r"\bxgboost\b",
             r"\bgradient boosting\b",
             r"\bautoencoders?\b",
+            r"\bconvolutional neural network\b",
+            r"\bCNN\b",
+            r"\brecurrent neural network\b",
+            r"\bRNN\b",
+            r"\blong short-term memory\b",
+            r"\bLSTM\b",
+            r"\bgenerative adversarial network\b",
+            r"\bGAN\b",
+            r"\bvariational autoencoder\b",
+            r"\bVAE\b",
+            r"\bgraph neural network\b",
+            r"\bGNN\b",
+            r"\btransformer (network|model|architecture)\b",
+            r"\battention mechanism\b",
         ]
     ),
     "AI_OPT": _compile(
@@ -58,77 +59,32 @@ METHOD_PATTERNS: dict[str, list[re.Pattern[str]]] = {
         [
             r"\bsurrogate model(?:s)?\b",
             r"\bsurrogate-based\b",
+            r"\bPINN\b",
         ]
     ),
     "DTWIN": _compile([r"\bdigital twin(?:s)?\b"]),
-}
-
-CONTEXT_PATTERNS: dict[str, list[re.Pattern[str]]] = {
-    "DIAG": _compile(
+    "DS_TOOLS": _compile(
         [
-            r"\bdiagnostic(?:s)?\b",
-            r"\bbeam diagnostics\b",
-            r"\bbpm\b",
-            r"\bprofile\b",
-            r"\bimage(?:s|ing)?\b",
-            r"\btomograph(?:y|ic)\b",
-            r"\breconstruction\b",
-            r"\binversion\b",
+            r"\bPyTorch\b",
+            r"\bTensorFlow\b",
+            r"\bKeras\b",
+            r"\bscikit-learn\b",
+            r"\bsklearn\b",
+            r"\bONNX\b",
+            r"\bHugging Face\b",
         ]
     ),
-    "CTRL": _compile(
+    "DS_STAT": _compile(
         [
-            r"\bcontrol\b",
-            r"\bcontroller\b",
-            r"\bfeedback\b",
-            r"\bclosed[- ]loop\b",
-            r"\bmodel predictive control\b",
-        ]
-    ),
-    "OPT": _compile(
-        [
-            r"\btuning\b",
-            r"\boptimization\b",
-            r"\bonline optimization\b",
-            r"\bparameter optimization\b",
-        ]
-    ),
-    "SIM": _compile(
-        [
-            r"\bsimulation\b",
-            r"\bemulator\b",
-            r"\breduced[- ]order\b",
-            r"\bfast (model|modeling)\b",
-            r"\bfast modeling\b",
-        ]
-    ),
-    "DATA": _compile(
-        [
-            r"\barchived data\b",
-            r"\barchive data\b",
-            r"\bhistorical data\b",
-            r"\blog data\b",
-            r"\bdata analysis\b",
-            r"\bdata mining\b",
-            r"\blarge (quantities|amounts) of data\b",
-        ]
-    ),
-    "ANOM": _compile(
-        [
-            r"\banomaly detection\b",
-            r"\bfault detection\b",
-            r"\boutlier\b",
-            r"\bclassification\b",
-        ]
-    ),
-    "DESIGN": _compile(
-        [
-            r"\blattice design\b",
-            r"\binjector\b",
-            r"\bphotoinjector\b",
-            r"\bgunn?\b",
-            r"\bmagnet design\b",
-            r"\brf systems?\b",
+            r"\bprincipal component analysis\b",
+            r"\bdimensionality reduction\b",
+            r"\bk-means\b",
+            r"\bDBSCAN\b",
+            r"\bfeature (extraction|engineering|selection|importance)\b",
+            r"\bcross[- ]validation\b",
+            r"\bhyperparameter\b",
+            r"\bprecision[- ]recall\b",
+            r"\bROC curve\b",
         ]
     ),
 }
@@ -170,44 +126,57 @@ def _load_checkpoint(output_path: Path) -> set[str]:
     return seen
 
 
+@dataclass(frozen=True)
+class Args:
+    input: Path
+    output: Path
+    overwrite: bool
+    include_matches: bool
+    progress_every: int
+
+
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        description="Annotate JSONL with explicit AI/ML mentions via regex"
-    )
-    p.add_argument("--input", type=Path, default=DEFAULT_INPUT, help="Input JSONL")
-    p.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Output JSONL")
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--input", type=Path, required=True, help="Input JSONL")
+    p.add_argument("--output", type=Path, required=True, help="Output JSONL")
     p.add_argument(
         "--include-matches",
         action="store_true",
-        help="Include explicit_ai_matches (pattern strings) for auditing",
+        help="Include matched pattern strings in output for auditing",
     )
     p.add_argument(
         "--overwrite",
         action="store_true",
-        help="Overwrite output instead of append/resume",
+        help="Overwrite output instead of resume",
     )
     p.add_argument(
         "--progress-every",
         type=int,
-        default=1000,
-        help="Print progress every N records",
+        default=100,
+        help="Print progress every N records (default: 100)",
     )
     return p
 
 
 def main() -> None:
-    args = build_parser().parse_args()
+    ns = build_parser().parse_args()
+    args = Args(
+        input=ns.input,
+        output=ns.output,
+        overwrite=ns.overwrite,
+        include_matches=ns.include_matches,
+        progress_every=ns.progress_every,
+    )
+
     if not args.input.exists():
         raise SystemExit(f"Input not found: {args.input}")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-
     mode = "w" if args.overwrite else "a"
     checkpoint: set[str] = set() if args.overwrite else _load_checkpoint(args.output)
 
     processed = 0
     skipped = 0
-    total_read = 0
 
     with (
         args.input.open(encoding="utf-8") as f_in,
@@ -216,7 +185,6 @@ def main() -> None:
         for line in f_in:
             if not line.strip():
                 continue
-            total_read += 1
             record = json.loads(line)
             rec_id = str(record.get("id"))
             if rec_id in checkpoint:
@@ -226,37 +194,22 @@ def main() -> None:
             text = _text_for_matching(record)
             method_matches = _match_patterns(text, METHOD_PATTERNS)
             methods = sorted(method_matches.keys())
-            has_methods = bool(methods)
-
-            context_matches: Matches = {}
-            contexts: list[str] = []
-            if has_methods:
-                context_matches = _match_patterns(text, CONTEXT_PATTERNS)
-                contexts = sorted(context_matches.keys())
-
-            matches: Matches = {}
-            matches.update(method_matches)
-            matches.update(context_matches)
 
             enriched = dict(record)
             enriched["methods"] = methods
-            enriched["contexts"] = contexts
-            enriched["explicit_ai_any"] = 1 if has_methods else 0
+            enriched["explicit_ds_any"] = 1 if methods else 0
             if args.include_matches:
-                enriched["explicit_ai_matches"] = matches
+                enriched["explicit_ai_matches"] = method_matches
 
             f_out.write(json.dumps(enriched, ensure_ascii=False) + "\n")
-            processed += 1
             checkpoint.add(rec_id)
+            processed += 1
 
-            if args.progress_every > 0 and processed % args.progress_every == 0:
-                print(
-                    f"Processed={processed:,} Skipped={skipped:,} Read={total_read:,}",
-                    flush=True,
-                )
+            if processed % args.progress_every == 0:
+                print(f"processed={processed:,} skipped={skipped:,}", flush=True)
 
     print(
-        f"Processed={processed:,} Skipped={skipped:,} Read={total_read:,} Output={args.output}",
+        f"done processed={processed:,} skipped={skipped:,} output={args.output}",
         flush=True,
     )
 

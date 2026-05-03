@@ -1,14 +1,4 @@
-#!/usr/bin/env python3
-"""
-Filter ArXiv JSONL metadata by ArXiv category code(s).
-
-Usage:
-    uv run filter.py --download --verbose
-    uv run filter.py --categories physics.acc-ph hep-ex --verbose
-    uv run filter.py \
-        --input data/arxiv-metadata-oai-snapshot.json \
-        --output out/filtered.jsonl
-"""
+"""Filter ArXiv JSONL metadata by ArXiv category code"""
 
 import argparse
 import sys
@@ -26,22 +16,21 @@ CHUNK_SIZE = 50_000
 def download_dataset(input_path: Path, verbose: bool = False) -> None:
     if input_path.exists():
         if verbose:
-            print(f"Dataset already exists at {input_path}, skipping download.")
+            print(f"Dataset already exists at {input_path}; skipping download")
         return
 
     creds = Path.home() / ".kaggle" / "kaggle.json"
     if not creds.exists():
         sys.exit(
             "Kaggle credentials not found. Create ~/.kaggle/kaggle.json with "
-            '{"username": "...", "key": "..."} and chmod 600 it.\n'
-            "See: https://www.kaggle.com/docs/api"
+            '{"username": "...", "key": "..."} and chmod 600 it'
         )
 
     import kaggle  # type: ignore
 
     input_path.parent.mkdir(parents=True, exist_ok=True)
     if verbose:
-        print(f"Downloading {DATASET} to {input_path.parent} ...")
+        print(f"Downloading {DATASET} to {input_path.parent}")
     kaggle.api.authenticate()
     kaggle.api.dataset_download_files(
         DATASET, path=str(input_path.parent), unzip=True, quiet=not verbose
@@ -85,10 +74,10 @@ def filter_jsonl(
                 elapsed = time.monotonic() - start
                 rate = total / elapsed if elapsed > 0 else 0
                 print(
-                    f"  chunk {chunk_num:>4} | "
-                    f"records: {total:>9,} | "
-                    f"matched: {matched:>7,} | "
-                    f"rate: {rate:>9,.0f} rec/s",
+                    f"Chunk {chunk_num:>4} | "
+                    f"Records: {total:>9,} | "
+                    f"Matched: {matched:>7,} | "
+                    f"Rate: {rate:>9,.0f} rec/s",
                     flush=True,
                 )
 
@@ -104,7 +93,7 @@ def resolve_output(args) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Filter ArXiv JSONL metadata by ArXiv category code(s)",
+        description="Filter ArXiv JSONL metadata by ArXiv category code",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -158,7 +147,7 @@ def main():
     if not args.input.exists():
         sys.exit(
             f"Input file not found: {args.input}\n"
-            "Run with --download to fetch it from Kaggle."
+            "Run this with `--download` flag to fetch it from Kaggle"
         )
 
     if args.verbose:
